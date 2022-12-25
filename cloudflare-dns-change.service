@@ -1,0 +1,8 @@
+[Unit]
+Description=Cloudflare DNS
+
+[Service]
+ExecStart=/bin/cloudy
+
+[Install]
+WantedBy=multi-user.target
