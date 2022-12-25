@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -60,7 +61,7 @@ SSL *sockToSSL(const char *domain, int port) {
     const SSL_METHOD *method;
     
     //create new context
-    method = SSLv23_client_method();
+    method = TLS_client_method();
     ctx = SSL_CTX_new(method);
     if (ctx == NULL) {
         ERR_print_errors_fp(stderr);
@@ -82,12 +83,21 @@ SSL *sockToSSL(const char *domain, int port) {
 }
 
 int sendToSocket(SSL *SSLsock, const char *string) {
-    if (SSL_write(SSLsock, string, strlen(string)) != 0) return -1;
+    if (SSL_write(SSLsock, string, strlen(string)) < 1) return -1;
     return 0;
 }
 
 int readFromSocket(SSL *SSLsock, char *string) {
-    if (SSL_read(SSLsock, string, sizeof(string)) != 0) return -1;
+    int bytesRead;
+    char readBufferTemp[1024];
+
+    //do {
+        bytesRead = SSL_read(SSLsock, readBufferTemp, sizeof(readBufferTemp));
+        strcat(string, readBufferTemp);
+        //printf("string: %s\n", readBufferTemp);
+        //readBufferTemp[0] = '\0';
+    //} while (bytesRead > 0);
+
     return 0;
 }
 
@@ -113,8 +123,8 @@ char *get_extip_address() {
 
 int main() {
     SSL *SSLsock;
+    int sock;
     initSSL();
-    SSLsock = sockToSSL("api.cloudflare.com", 443);
 
     if ((SSLsock = sockToSSL("api.cloudflare.com", 443)) == NULL) {
         printf("could not open ssl socket\n");
@@ -123,24 +133,16 @@ int main() {
 
     printf("connected to cloudflare server\n\n");
 
-    char buffer[1024];
-    SSL_write(SSLsock, "hi", 2);
-    int bytes = SSL_read(SSLsock, buffer, 1024);
-    printf("bytes read: %d\n", bytes);
-    printf("\nresp: %s\n", buffer);
-
-	// string env_var = getenv("TOKEN");
-    // if (env_var.empty()) {
-    //     cerr << "[ERROR] No such variable found!" << endl;
-    //     exit(EXIT_FAILURE);
-    // }
-    //printf("y: %s\n", get_extip_address());
-    /*char *extip = get_extip_address();
-    string strip = extip;
+    char readBuffer[2048];
+    char sendBuffer[4096] = {"GET / HTTP/1.1\r\n\r\n"};
+    //PUT /client/v4/zones/ab4593b1d7b96846e08b4f5553657297/dns_records/3490891a976816a31c0560824b3b88f0 HTTP/1.1\r\n
+    //Content-Type: application/json\r\nAuthorization: Bearer KJvlvmNzVz4EFHSO5tEKpAeYHTwaxCg0QtkgnCtM\r\n\r\n{\"type\":\"A\",\"name\":\"minigames.host\",\"content\":\"69.69.69.69\",\"ttl\":3600,\"proxied\":true}
+    //printf("%s\n", sendBuffer);
     
-    cout << strip << endl;*/
+    sendToSocket(SSLsock, sendBuffer);
+    readFromSocket(SSLsock, readBuffer);
+    printf("response: %s\n", readBuffer);
 
-    //free all connections
     SSL_free(SSLsock);
     SSL_CTX_free(ctx);
     return 0;
